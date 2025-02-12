@@ -20,7 +20,7 @@
 
 	export let sort: EdgeSorter;
 
-	let opens = tree.map(() => true);
+	let opens = tree.map(() => false);
 
 	$: if (open_signal === true) {
 		opens = opens.map(() => true);

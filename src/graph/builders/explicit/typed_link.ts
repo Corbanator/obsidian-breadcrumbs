@@ -4,6 +4,7 @@ import type {
 } from "src/interfaces/graph";
 import { ensure_is_array } from "src/utils/arrays";
 import { resolve_relative_target_path } from "src/utils/obsidian";
+import { log } from "src/logger";
 
 const MARKDOWN_LINK_REGEX = /\[(.+?)\]\((.+?)\)/;
 
