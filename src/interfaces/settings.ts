@@ -1,3 +1,4 @@
+import type { IJugglSettings } from "juggl-api";
 import type { ListIndex } from "src/commands/list_index";
 import type { EdgeSortId } from "src/const/graph";
 import type { BCEdgeAttributes, EdgeAttribute } from "src/graph/MyMultiGraph";
@@ -131,6 +132,7 @@ export interface BreadcrumbsSettings {
 		codeblocks: {
 			show_node_options: ShowNodeOptions;
 		};
+		juggl: IJugglSettings;
 	};
 
 	commands: {

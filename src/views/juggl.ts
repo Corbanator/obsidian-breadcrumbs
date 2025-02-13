@@ -3,26 +3,27 @@ import type { MultiGraph } from "graphology";
 import {
   DataStoreEvents,
   getPlugin,
-  ICoreDataStore,
-  IJuggl,
-  IJugglSettings,
-  IJugglStores,
   nodeDangling,
   nodeFromFile,
   VizId,
 } from "juggl-api";
+import type {
+  ICoreDataStore,
+  IJuggl,
+  IJugglStores,
+} from "juggl-api"
 import { info, warn } from "loglevel";
 import { Component, Events, MetadataCache, TFile } from "obsidian";
-import { createIndex } from "../Commands/CreateIndex";
+/* import { createIndex } from "../Commands/CreateIndex";
 import JugglButton from "../Components/JugglButton.svelte";
-import JugglDepth from "../Components/JugglDepth.svelte";
-import { JUGGL_CB_DEFAULTS } from "../constants";
+import JugglDepth from "../Components/JugglDepth.svelte"; */
 import type BCPlugin from "../main";
-import {
+import { log } from "src/logger";
+/* import {
   dfsAllPaths,
   getReflexiveClosure,
   getSubInDirs,
-} from "../Utils/graphUtils";
+} from "../Utils/graphUtils"; */
 const STORE_ID = "core";
 
 class BCStoreEvents extends Events implements DataStoreEvents { }
@@ -30,7 +31,7 @@ class BCStoreEvents extends Events implements DataStoreEvents { }
 export class BCStore extends Component implements ICoreDataStore {
   graph: MultiGraph;
   cache: MetadataCache;
-  depthMap: { [value: string]: number };
+  depthMap?: { [value: string]: number };
   constructor(
     graph: MultiGraph,
     metadata: MetadataCache,
@@ -47,7 +48,7 @@ export class BCStore extends Component implements ICoreDataStore {
     return id.id.slice(0, -3);
   }
 
-  getFile(nodeId: VizId): TFile {
+  getFile(nodeId: VizId): TFile | null {
     return this.cache.getFirstLinkpathDest(nodeId.id, "");
   }
 
@@ -60,24 +61,59 @@ export class BCStore extends Component implements ICoreDataStore {
     const nodesListS = new Set(
       allNodes.map((node) => this.asString(node)).filter((s) => s)
     );
+		log.debug("newNodes:")
+		log.debug(newNodes)
+		log.debug("allNodes:")
+		log.debug(allNodes)
     newNodes.forEach((node) => {
-      const name = this.asString(node);
+      const name = this.asString(node) + ".md";
+			// log.debug(name)		
+			// log.debug(this.graph)
+			// log.debug(nodesListS)
       if (!this.graph.hasNode(name)) {
         return;
       }
+			// log.debug("graph has name.")
       this.graph.forEachOutEdge(
-        this.asString(node),
+				name,
         (key, attr, source, target) => {
-          if (nodesListS.has(target)) {
+					// log.debug(key)
+					// log.debug(attr)
+					// log.debug(source)
+					// log.debug(target)
+          if (nodesListS.has(target.replace(".md", ""))) {
+						log.debug("list has target")
             edges.push({
               data: {
                 id: `BC:${source}->${target}`,
-                source: VizId.toId(source, STORE_ID) + ".md",
-                target: VizId.toId(target, STORE_ID) + ".md",
+                source: VizId.toId(source, STORE_ID),
+                target: VizId.toId(target, STORE_ID),
                 type: attr.field,
-                dir: attr.dir,
+                dir: attr.field,
               },
-              classes: `type-${attr.field} dir-${attr.dir} breadcrumbs$`,
+              classes: `type-${attr.field} dir-${attr.field} breadcrumbs$`,
+            });
+          }
+        }
+      );
+      this.graph.forEachInEdge(
+				name,
+        (key, attr, source, target) => {
+					// log.debug(key)
+					// log.debug(attr)
+					// log.debug(source)
+					// log.debug(target)
+          if (nodesListS.has(source.replace(".md", ""))) {
+						log.debug("list has source")
+            edges.push({
+              data: {
+                id: `BC:${source}->${target}`,
+                source: VizId.toId(source, STORE_ID),
+                target: VizId.toId(target, STORE_ID),
+                type: attr.field,
+                dir: attr.field,
+              },
+              classes: `type-${attr.field} dir-${attr.field} breadcrumbs$`,
             });
           }
         }
@@ -147,23 +183,18 @@ export function createJuggl(
   plugin: BCPlugin,
   target: HTMLElement,
   initialNodes: string[],
-  args: IJugglSettings,
-  depthMap: { [value: string]: number } = null
-): IJuggl {
+  depthMap?: { [value: string]: number } 
+): IJuggl | null {
   try {
-    const jugglPlugin = getPlugin(app);
+    const jugglPlugin = getPlugin(plugin.app);
     if (!jugglPlugin) {
       // TODO: Error handling
-      return;
-    }
-    for (let key in JUGGL_CB_DEFAULTS) {
-      if (key in args && args[key] === undefined)
-        args[key] = JUGGL_CB_DEFAULTS[key];
+      return null;
     }
 
     const bcStore = new BCStore(
-      plugin.mainG,
-      app.metadataCache,
+      plugin.graph,
+      plugin.app.metadataCache,
       depthMap
     );
     const stores: IJugglStores = {
@@ -171,7 +202,7 @@ export function createJuggl(
       dataStores: [bcStore],
     };
 
-    const juggl = jugglPlugin.createJuggl(target, args, stores, initialNodes);
+    const juggl = jugglPlugin.createJuggl(target, plugin.settings.views.juggl, stores, initialNodes);
     plugin.addChild(juggl);
     info({ juggl });
     return juggl;
@@ -181,7 +212,8 @@ export function createJuggl(
   }
 }
 
-function zoomToSource(juggl: IJuggl, source: string) {
+// Unnecessary, used only for trail view.
+/* function zoomToSource(juggl: IJuggl, source: string) {
   if (!juggl) {
     return;
   }
@@ -233,9 +265,10 @@ function createDepthMap(
 function updateDepth(juggl: IJuggl, depth: number) {
   juggl.viz.$(`[depth>${depth}]`).addClass("filtered");
   juggl.viz.$(`[depth<=${depth}]`).removeClass("filtered");
-}
+} */
 
-export function createJugglTrail(
+// Likely unnecessary, I don't personally need this functionality
+/* export function createJugglTrail(
   plugin: BCPlugin,
   target: HTMLElement,
   paths: string[][],
@@ -439,4 +472,4 @@ export function createJugglTrail(
   } else {
     zoomToGraph(jugglUp);
   }
-}
+} */

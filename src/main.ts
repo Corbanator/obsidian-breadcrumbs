@@ -22,10 +22,14 @@ import { Timer } from "./utils/timer";
 import { redraw_page_views } from "./views/page";
 import { TreeView } from "./views/tree";
 
+import { getPlugin } from "juggl-api";
+import { BCStore } from "./views/juggl";
+
 export default class BreadcrumbsPlugin extends Plugin {
 	settings!: BreadcrumbsSettings;
 	graph = new BCGraph();
 	api!: BCAPI;
+	bcStore?: BCStore;
 
 	async onload() {
 		// Settings
@@ -225,12 +229,19 @@ export default class BreadcrumbsPlugin extends Plugin {
 		log.debug("loaded Breadcrumbs plugin");
 	}
 
-	onunload() {}
+	onunload() {
+		if (this.bcStore) {
+			const jugglPlugin = getPlugin(this.app)
+			if (jugglPlugin) {
+				jugglPlugin.removeStore(this.bcStore)
+			}
+		}
+	}
 
 	async loadSettings() {
 		this.settings = deep_merge_objects(
 			(await this.loadData()) ?? {},
-			DEFAULT_SETTINGS as any,
+			DEFAULT_SETTINGS as BreadcrumbsSettings,
 		);
 	}
 
@@ -336,6 +347,16 @@ export default class BreadcrumbsPlugin extends Plugin {
 					(leaf.view as TreeView).onOpen();
 				});
 		}
+
+		// Juggl View
+		const jugglPlugin = getPlugin(this.app)
+		if(jugglPlugin) {
+			log.debug("Loading Juggl Integration")
+			log.debug(jugglPlugin)
+			this.bcStore = new BCStore(this.graph, this.app.metadataCache);
+			jugglPlugin.registerStore(this.bcStore);
+		}
+
 	};
 
 	// SOURCE: https://docs.obsidian.md/Plugins/User+interface/Views

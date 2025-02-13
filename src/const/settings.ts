@@ -169,6 +169,31 @@ export const DEFAULT_SETTINGS: BreadcrumbsSettings = {
 		codeblocks: {
 			show_node_options: { ...DEFAULT_SHOW_NODE_OPTIONS },
 		},
+
+		juggl: {
+			animateLayout: true,
+			autoAddNodes: false,
+			autoExpand: false,
+			autoZoom: false,
+			coreStore: "core",
+			expandInitial: false,
+			fdgdLayout: "d3-force",
+			filter: "",
+			height: "750px",
+			hoverEdges: false,
+			layout: "force-directed",
+			limit: 250,
+			mergeEdges: true,
+			// metaKeyHover: true,
+			mode: "workspace",
+			navigator: true,
+			openWithShift: false,
+			readContent: true,
+			styleGroups: [],
+			toolbar: true,
+			width: "100%",
+			zoomSpeed: 1,
+		}
 	},
 
 	commands: {
