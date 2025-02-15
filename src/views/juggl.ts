@@ -45,7 +45,7 @@ export class BCStore extends Component implements ICoreDataStore {
 
   asString(node: NodeSingular): string {
     const id = VizId.fromNode(node);
-    return id.id.slice(0, -3);
+    return id.id.replace(".md", "");
   }
 
   getFile(nodeId: VizId): TFile | null {
@@ -61,63 +61,81 @@ export class BCStore extends Component implements ICoreDataStore {
     const nodesListS = new Set(
       allNodes.map((node) => this.asString(node)).filter((s) => s)
     );
-		log.debug("newNodes:")
-		log.debug(newNodes)
-		log.debug("allNodes:")
-		log.debug(allNodes)
+		// log.debug("Connecting Nodes...")
+		// log.debug("newNodes:")
+		// log.debug(newNodes)
+		// log.debug("allNodes:")
+		// log.debug(allNodes)
     newNodes.forEach((node) => {
-      const name = this.asString(node) + ".md";
-			// log.debug(name)		
+      const nodeName = this.asString(node) + ".md";
+			// log.debug(nodeName)		
 			// log.debug(this.graph)
 			// log.debug(nodesListS)
-      if (!this.graph.hasNode(name)) {
+
+			// Remove the path to the note, leaving only the actual note file name. This allows for duplicates, unfortunately.
+			const names = this.graph.filterNodes((nodeID) => nodeID.replace(/.*\//, "") == nodeName)
+      if (names.length == 0) {
         return;
       }
 			// log.debug("graph has name.")
-      this.graph.forEachOutEdge(
-				name,
-        (key, attr, source, target) => {
-					// log.debug(key)
-					// log.debug(attr)
-					// log.debug(source)
-					// log.debug(target)
-          if (nodesListS.has(target.replace(".md", ""))) {
-						log.debug("list has target")
-            edges.push({
-              data: {
-                id: `BC:${source}->${target}`,
-                source: VizId.toId(source, STORE_ID),
-                target: VizId.toId(target, STORE_ID),
-                type: attr.field,
-                dir: attr.field,
-              },
-              classes: `type-${attr.field} dir-${attr.field} breadcrumbs$`,
-            });
-          }
-        }
-      );
-      this.graph.forEachInEdge(
-				name,
-        (key, attr, source, target) => {
-					// log.debug(key)
-					// log.debug(attr)
-					// log.debug(source)
-					// log.debug(target)
-          if (nodesListS.has(source.replace(".md", ""))) {
-						log.debug("list has source")
-            edges.push({
-              data: {
-                id: `BC:${source}->${target}`,
-                source: VizId.toId(source, STORE_ID),
-                target: VizId.toId(target, STORE_ID),
-                type: attr.field,
-                dir: attr.field,
-              },
-              classes: `type-${attr.field} dir-${attr.field} breadcrumbs$`,
-            });
-          }
-        }
-      );
+			// In most circumstances, this should run only once, but Juggl doesn't differentiate notes
+			// by the directory they're in, so neither can we for this purpose.
+			// Two notes with the same name in different directories will be effectively merged on the graph,
+			// which is unfortunately unavaoidable, there's no way to tell which note Juggl wants, and getting all
+			// is preferable to getting none.
+			// log.debug(names)
+			for(const index in names) {
+				log.debug("Running out edges...")
+				this.graph.forEachOutEdge(
+					names[index],
+					(key, attr, source, target) => {
+						// log.debug(key)
+						// log.debug(attr)
+						// log.debug([source, target])
+						const trimmedSource = source.replace(/.*\//, "");
+						const trimmedTarget = target.replace(/.*\//, "");
+						log.debug([trimmedSource, trimmedTarget])
+						if (nodesListS.has(trimmedTarget.replace(".md", ""))) {
+							// log.debug("list has target")
+							edges.push({
+								data: {
+									id: `BC:${trimmedSource}->${trimmedTarget}`,
+									source: VizId.toId(trimmedSource, STORE_ID),
+									target: VizId.toId(trimmedTarget, STORE_ID),
+									type: attr.field,
+									dir: attr.field,
+								},
+								classes: `type-${attr.field} dir-${attr.field} breadcrumbs$`,
+							});
+						}
+					}
+				);
+				// log.debug("Running in edges...")
+				this.graph.forEachInEdge(
+					names[index],
+					(key, attr, source, target) => {
+						// log.debug(key)
+						// log.debug(attr)
+						// log.debug([source, target])
+						const trimmedSource = source.replace(/.*\//, "");
+						const trimmedTarget = target.replace(/.*\//, "");
+						// log.debug([trimmedSource, trimmedTarget])
+						if (nodesListS.has(trimmedSource.replace(".md", ""))) {
+							// log.debug("list has source")
+							edges.push({
+								data: {
+									id: `BC:${trimmedSource}->${trimmedTarget}`,
+									source: VizId.toId(trimmedSource, STORE_ID),
+									target: VizId.toId(trimmedTarget, STORE_ID),
+									type: attr.field,
+									dir: attr.field,
+								},
+								classes: `type-${attr.field} dir-${attr.field} breadcrumbs$`,
+							});
+						}
+					}
+				);
+			}
     });
     return Promise.resolve(edges);
   }
@@ -130,18 +148,30 @@ export class BCStore extends Component implements ICoreDataStore {
     nodeIds: VizId[],
     view: IJuggl
   ): Promise<cytoscape.NodeDefinition[]> {
+		// log.debug("Getting Neighborhood...")
     const new_nodes = [];
     for (const nodeId of nodeIds) {
-      const name = nodeId.id.slice(0, -3);
-      if (!this.graph.hasNode(name)) {
+      const nodeName = nodeId.id.replace(".md", "");
+			// log.debug("Node Name:")
+			// log.debug(nodeName)
+			const names = this.graph.filterNodes((nodeID) => nodeID.replace(".md", "").replace(/.*\//, "") == nodeName)
+      if (!names) {
         continue;
       }
-      for (const new_node of this.graph.neighbors(name)) {
-        new_nodes.push(
-          await this.get(new VizId(new_node + ".md", STORE_ID), view)
-        );
-      }
+			// log.debug(names)
+			for(const index in names) {
+				for (const new_node of this.graph.neighbors(names[index])) {
+					// log.debug("New Node:")
+					// log.debug(new_node)
+					// log.debug(new_node.replace(".md", "").replace(/.*\//, ""))
+					new_nodes.push(
+						await this.get(new VizId(new_node.replace(/.*\//, ""), STORE_ID), view)
+					);
+				}
+			}
     }
+		// log.debug("Output Nodes:")
+		// log.debug(new_nodes)
     return new_nodes;
   }
 
